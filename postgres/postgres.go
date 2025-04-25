@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"swagger_petstore/config"
-	"swagger_petstore/internal/repository"
 
 	"github.com/golang-migrate/migrate"
 	"github.com/jmoiron/sqlx"
@@ -15,7 +14,7 @@ func NewPostgresDB(conf *config.DBConfig, logger *zap.Logger) *sqlx.DB {
 		logger.Fatal("Failed to connect to database: ", zap.Error(err))
 	}
 
-	m := repository.NewMigration(conf)
+	m := NewMigration(conf)
 	if err := m.Up(); err != nil && err.Error() != migrate.ErrNoChange.Error() {
 		logger.Fatal("error migrate: ", zap.Error(err))
 	}

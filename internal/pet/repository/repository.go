@@ -8,7 +8,6 @@ import (
 	"strings"
 	"swagger_petstore/middleware"
 	"swagger_petstore/petstore"
-	"time"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/lib/pq"
@@ -16,7 +15,7 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type PetUserRepository interface {
+type PetsRepository interface {
 	AddPet(ctx context.Context, pet petstore.Pet) error
 	UpdatePet(ctx context.Context, pet petstore.Pet) error
 	FindPetsByStatus(ctx context.Context, status petstore.FindPetsByStatusParams) ([]petstore.Pet, error)
@@ -24,23 +23,12 @@ type PetUserRepository interface {
 	DeletePet(ctx context.Context, petId int64, params petstore.DeletePetParams) error
 	GetPetById(ctx context.Context, petId int64) (petstore.Pet, error)
 	UpdatePetWithForm(ctx context.Context, petId int64, params petstore.UpdatePetWithFormParams) error
-	GetInventory(ctx context.Context) (map[string]int32, error)
-	PlaceOrder(ctx context.Context, order petstore.Order) error
-	DeleteOrder(ctx context.Context, orderId int64) error
-	GetOrderById(ctx context.Context, orderId int64) (petstore.Order, error)
-	CreateUsersWithListInput(ctx context.Context, users []petstore.User) error
-	CreateUser(ctx context.Context, user petstore.User) error
-	LoginUser(ctx context.Context, params petstore.LoginUserParams) (petstore.User, error)
-	LogoutUser(ctx context.Context, tokenID string, token string, exp time.Time) error
-	DeleteUser(ctx context.Context, username string) error
-	GetUserByName(ctx context.Context, username string) (petstore.User, error)
-	UpdateUser(ctx context.Context, user petstore.User) error
 }
 type Repository struct {
 	db *sqlx.DB
 }
 
-func NewRepository(db *sqlx.DB) PetUserRepository {
+func NewRepository(db *sqlx.DB) PetsRepository {
 	return &Repository{db: db}
 }
 
@@ -485,7 +473,7 @@ func (r *Repository) GetPetById(ctx context.Context, petId int64) (petstore.Pet,
 			Id:   new(int64),
 			Name: new(string),
 		}
-		*category.Id = categoryID.Int64
+		category.Id = &categoryID.Int64
 		var name sql.NullString
 		err := r.db.QueryRow(`
 			SELECT name FROM categories WHERE id = $1
@@ -536,119 +524,6 @@ func (r *Repository) UpdatePetWithForm(ctx context.Context, petId int64, params 
 		*params.Name, s, petId)
 	if err != nil {
 		return fmt.Errorf("failed to update pet: %w", err)
-	}
-	return nil
-}
-
-func (r *Repository) GetInventory(ctx context.Context) (map[string]int32, error) {
-	var pets []petstore.Pet
-	res := make(map[string]int32)
-
-	query := `SELECT status
-			 FROM pets`
-
-	err := r.db.Select(&pets, query)
-	if err != nil {
-		return res, fmt.Errorf("failed to get pets: %w", err)
-	}
-
-	for _, pet := range pets {
-		res[string(*pet.Status)]++
-	}
-
-	return res, nil
-}
-
-func (r *Repository) PlaceOrder(ctx context.Context, order petstore.Order) error {
-	_, err := r.db.ExecContext(ctx, "INSERT INTO orders (id, complete, petId, quantity, shipDate, status) VALUES ($1, $2, $3, $4, $5, $6)",
-		order.Id, order.Complete, order.PetId, order.Quantity, order.ShipDate, order.Status)
-	if err != nil {
-		return fmt.Errorf("failed to create order: %w", err)
-	}
-	return nil
-}
-
-func (r *Repository) DeleteOrder(ctx context.Context, orderId int64) error {
-	_, err := r.db.Exec("DELETE FROM orders WHERE id=$1", orderId)
-	return err
-}
-
-func (r *Repository) GetOrderById(ctx context.Context, orderId int64) (petstore.Order, error) {
-	var order petstore.Order
-	query := `SELECT *
-			 FROM orders 
-			 WHERE id = $1`
-	err := r.db.GetContext(ctx, &order, query, orderId)
-	if err != nil {
-		return petstore.Order{}, fmt.Errorf("failed to get order by ID: %w", err)
-	}
-	return order, nil
-}
-func (r *Repository) CreateUser(ctx context.Context, user petstore.User) error {
-	_, err := r.db.ExecContext(ctx, "INSERT INTO users (id, username, firstName, lastName, password, email, phone, userStatus) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-		user.Id, user.Username, user.FirstName, user.LastName, user.Password, user.Email, user.Phone, user.UserStatus)
-	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
-	}
-	return nil
-}
-
-func (r *Repository) CreateUsersWithListInput(ctx context.Context, users []petstore.User) error {
-	for _, user := range users {
-		err := r.CreateUser(ctx, user)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (r *Repository) LoginUser(ctx context.Context, params petstore.LoginUserParams) (petstore.User, error) {
-	var user petstore.User
-	query := `SELECT *
-			 FROM users 
-			 WHERE username = $1 and password = $2`
-	err := r.db.GetContext(ctx, &user, query, params.Username, params.Password)
-	if err != nil {
-		return petstore.User{}, fmt.Errorf("user was not found: %w", err)
-	}
-	return user, nil
-}
-
-func (r *Repository) LogoutUser(ctx context.Context, tokenID string, token string, exp time.Time) error {
-	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO token_blacklist (token_id, token, expires_at)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (token_id) DO UPDATE
-		SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at
-	`, tokenID, token, exp)
-	return err
-}
-
-func (r *Repository) DeleteUser(ctx context.Context, username string) error {
-	_, err := r.db.Exec("DELETE FROM users WHERE username=$1", username)
-	return err
-}
-
-func (r *Repository) GetUserByName(ctx context.Context, username string) (petstore.User, error) {
-	var user petstore.User
-	query := `SELECT *
-			 FROM users 
-			 WHERE username = $1`
-	err := r.db.GetContext(ctx, &user, query, username)
-	if err != nil {
-		return petstore.User{}, fmt.Errorf("failed to get order by name: %w", err)
-	}
-	return user, nil
-}
-
-func (r *Repository) UpdateUser(ctx context.Context, user petstore.User) error {
-	query := `UPDATE users 
-			 SET username = $1, firstName = $2, lastName = $3, password = $4, email = $5, phone = $6, userStatus = $7
-			 WHERE id = $8`
-	_, err := r.db.ExecContext(ctx, query, user.Username, user.FirstName, user.LastName, user.Password, user.Email, user.Phone, user.UserStatus, user.Id)
-	if err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
 	}
 	return nil
 }

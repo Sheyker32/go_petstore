@@ -10,8 +10,12 @@ import (
 	"net/http"
 	"os"
 	"swagger_petstore/internal/handler"
-	"swagger_petstore/internal/repository"
-	"swagger_petstore/internal/service"
+	oRepository "swagger_petstore/internal/order/repository"
+	oService "swagger_petstore/internal/order/service"
+	pRepository "swagger_petstore/internal/pet/repository"
+	pService "swagger_petstore/internal/pet/service"
+	uRepository "swagger_petstore/internal/user/repository"
+	uService "swagger_petstore/internal/user/service"
 	"swagger_petstore/middleware"
 	"swagger_petstore/petstore"
 	"swagger_petstore/responder"
@@ -108,13 +112,19 @@ func (a *App) Bootstrap(options ...interface{}) Runner {
 		token.BlacklistMiddleware,
 	}
 
-	rep := repository.NewRepository(a.db)
-	serv := service.NewService(rep)
+	uRep := uRepository.NewUserRepository(a.db)
+	pRep := pRepository.NewRepository(a.db)
+	oRep := oRepository.NewOrderRepository(a.db)
+
+	uServ := uService.NewUserService(uRep)
+	pServ := pService.PetService(pRep)
+	oServ := oService.NewService(pRep, oRep)
+	controller := handler.NewAPI(respond, uServ, pServ, oServ)
 	optionsServer := petstore.ChiServerOptions{
 		BaseRouter:  r,
 		Middlewares: middlewares,
 	}
-	h := petstore.HandlerWithOptions(handler.NewAPI(respond, serv), optionsServer)
+	h := petstore.HandlerWithOptions(controller, optionsServer)
 	a.srv = server.NewServer(h)
 
 	return a

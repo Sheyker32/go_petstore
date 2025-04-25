@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"swagger_petstore/internal/service"
+	oService "swagger_petstore/internal/order/service"
+	pService "swagger_petstore/internal/pet/service"
+	uService "swagger_petstore/internal/user/service"
 	"swagger_petstore/middleware"
 	"swagger_petstore/petstore"
 	"swagger_petstore/responder"
@@ -16,14 +18,18 @@ import (
 )
 
 type API struct {
-	responder responder.Responder
-	service   service.Servicer
+	responder    responder.Responder
+	userService  uService.Servicer
+	petService   pService.Servicer
+	orderService oService.Servicer
 }
 
-func NewAPI(responder responder.Responder, service service.Servicer) *API {
+func NewAPI(responder responder.Responder, userService uService.Servicer, petService pService.Servicer, orderService oService.Servicer) *API {
 	return &API{
-		responder: responder,
-		service:   service,
+		responder:    responder,
+		userService:  userService,
+		petService:   petService,
+		orderService: orderService,
 	}
 }
 
@@ -43,7 +49,7 @@ func (A *API) AddPet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := A.service.AddPet(r.Context(), pet)
+	err := A.petService.AddPet(r.Context(), pet)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -72,7 +78,7 @@ func (A *API) UpdatePet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := A.service.UpdatePet(r.Context(), pet)
+	err := A.petService.UpdatePet(r.Context(), pet)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -96,7 +102,7 @@ func (A *API) UpdatePet(w http.ResponseWriter, r *http.Request) {
 // @Success			200		{object}	ResponsePets
 // @Router			/pet/findByStatus [get]
 func (A *API) FindPetsByStatus(w http.ResponseWriter, r *http.Request, params petstore.FindPetsByStatusParams) {
-	pets, err := A.service.FindPetsByStatus(r.Context(), params)
+	pets, err := A.petService.FindPetsByStatus(r.Context(), params)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -120,7 +126,7 @@ func (A *API) FindPetsByStatus(w http.ResponseWriter, r *http.Request, params pe
 // @Success			200		{object}	ResponsePets
 // @Router			/pet/findByTags [get]
 func (A *API) FindPetsByTags(w http.ResponseWriter, r *http.Request, params petstore.FindPetsByTagsParams) {
-	pets, err := A.service.FindPetsByTags(r.Context(), params)
+	pets, err := A.petService.FindPetsByTags(r.Context(), params)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -149,7 +155,7 @@ func (A *API) DeletePet(w http.ResponseWriter, r *http.Request, petId int64, par
 		return
 	}
 
-	err := A.service.DeletePet(r.Context(), petId, params)
+	err := A.petService.DeletePet(r.Context(), petId, params)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -173,7 +179,7 @@ func (A *API) DeletePet(w http.ResponseWriter, r *http.Request, petId int64, par
 // @Success			200		{object}	ResponsePet
 // @Router			/pet/{petId} [get]
 func (A *API) GetPetById(w http.ResponseWriter, r *http.Request, petId int64) {
-	pet, err := A.service.GetPetById(r.Context(), petId)
+	pet, err := A.petService.GetPetById(r.Context(), petId)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -205,7 +211,7 @@ func (A *API) UpdatePetWithForm(w http.ResponseWriter, r *http.Request, petId in
 	params.Name = &name
 	params.Status = &status
 
-	err := A.service.UpdatePetWithForm(r.Context(), petId, params)
+	err := A.petService.UpdatePetWithForm(r.Context(), petId, params)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -233,7 +239,7 @@ func (A *API) UploadFile(w http.ResponseWriter, r *http.Request, petId int64, pa
 // @Success			200		{object}	ResponseInventory
 // @Router			/store/inventory [get]
 func (A *API) GetInventory(w http.ResponseWriter, r *http.Request) {
-	inventory, err := A.service.GetInventory(r.Context())
+	inventory, err := A.orderService.GetInventory(r.Context())
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -262,7 +268,7 @@ func (A *API) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		A.responder.ErrorBadRequest(w, err)
 		return
 	}
-	err := A.service.PlaceOrder(r.Context(), order)
+	err := A.orderService.PlaceOrder(r.Context(), order)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -285,7 +291,7 @@ func (A *API) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 // @Success			200		{object}	ResponseData
 // @Router			/store/order/{orderId} [delete]
 func (A *API) DeleteOrder(w http.ResponseWriter, r *http.Request, orderId int64) {
-	err := A.service.DeleteOrder(r.Context(), orderId)
+	err := A.orderService.DeleteOrder(r.Context(), orderId)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -308,7 +314,7 @@ func (A *API) DeleteOrder(w http.ResponseWriter, r *http.Request, orderId int64)
 // @Success			200		{object}	ResponseOrder
 // @Router			/store/order/{orderId} [get]
 func (A *API) GetOrderById(w http.ResponseWriter, r *http.Request, orderId int64) {
-	order, err := A.service.GetOrderById(r.Context(), orderId)
+	order, err := A.orderService.GetOrderById(r.Context(), orderId)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -337,7 +343,7 @@ func (A *API) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := A.service.CreateUser(r.Context(), user)
+	err := A.userService.CreateUser(r.Context(), user)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -366,7 +372,7 @@ func (A *API) CreateUsersWithListInput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := A.service.CreateUsersWithListInput(r.Context(), users)
+	err := A.userService.CreateUsersWithListInput(r.Context(), users)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -389,7 +395,7 @@ func (A *API) CreateUsersWithListInput(w http.ResponseWriter, r *http.Request) {
 // @Success			200		{object}	AuthResponse
 // @Router			/user/login [get]
 func (A *API) LoginUser(w http.ResponseWriter, r *http.Request, params petstore.LoginUserParams) {
-	token, err := A.service.LoginUser(r.Context(), params)
+	token, err := A.userService.LoginUser(r.Context(), params)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -435,7 +441,7 @@ func (A *API) LogoutUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		expTime := time.Unix(int64(exp), 0)
-		err = A.service.LogoutUser(ctx, tokenID, tokenString, expTime)
+		err = A.userService.LogoutUser(ctx, tokenID, tokenString, expTime)
 		if err != nil {
 			A.responder.ErrorInternal(w, err)
 			return
@@ -463,7 +469,7 @@ func (A *API) LogoutUser(w http.ResponseWriter, r *http.Request) {
 // @Success			200		{object}	ResponseData
 // @Router			/user/{username} [delete]
 func (A *API) DeleteUser(w http.ResponseWriter, r *http.Request, username string) {
-	err := A.service.DeleteUser(r.Context(), username)
+	err := A.userService.DeleteUser(r.Context(), username)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -486,7 +492,7 @@ func (A *API) DeleteUser(w http.ResponseWriter, r *http.Request, username string
 // @Success			200		{object}	ResponseUser
 // @Router			/user/{username} [get]
 func (A *API) GetUserByName(w http.ResponseWriter, r *http.Request, username string) {
-	user, err := A.service.GetUserByName(r.Context(), username)
+	user, err := A.userService.GetUserByName(r.Context(), username)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
@@ -516,7 +522,7 @@ func (A *API) UpdateUser(w http.ResponseWriter, r *http.Request, username string
 		return
 	}
 	fmt.Println(username)
-	_, err := A.service.GetUserByName(r.Context(), username)
+	_, err := A.userService.GetUserByName(r.Context(), username)
 	if err != nil {
 		A.responder.OutputJSON(w, ErrorResponse{
 			Success:   false,
@@ -528,7 +534,7 @@ func (A *API) UpdateUser(w http.ResponseWriter, r *http.Request, username string
 		return
 	}
 
-	err = A.service.UpdateUser(r.Context(), user)
+	err = A.userService.UpdateUser(r.Context(), user)
 	if err != nil {
 		A.responder.ErrorInternal(w, err)
 		return
